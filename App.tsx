@@ -22,21 +22,21 @@ const App: React.FC = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- CRITICAL FIX: Safe History Loading ---
+  // --- SAFE HISTORY LOADING ---
   useEffect(() => {
     const saved = localStorage.getItem('awj_history');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        // Only load if it's a valid array
         if (Array.isArray(parsed)) {
-          // Double check items aren't broken
-          const cleanHistory = parsed.filter(item => item && item.detection && Array.isArray(item.detection.signals));
-          setHistory(cleanHistory);
+          setHistory(parsed);
         } else {
+          // If corrupted, clear it
           localStorage.removeItem('awj_history');
         }
       } catch (e) {
-        console.error("History corrupted, resetting.", e);
+        console.error("History corrupted, clearing.", e);
         localStorage.removeItem('awj_history');
       }
     }
@@ -47,7 +47,7 @@ const App: React.FC = () => {
     localStorage.setItem('awj_history', JSON.stringify(history));
   }, [history]);
 
-  // --- CRITICAL FIX: Safe Data Access for Graphs ---
+  // --- SAFE STATS CALCULATION ---
   const historyStats = useMemo(() => {
     if (!Array.isArray(history)) return [];
     return [...history].reverse().map((item, index) => ({
@@ -163,13 +163,13 @@ const App: React.FC = () => {
       });
 
       if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          throw new Error(errorData.error || "Analysis failed on server");
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Server error");
       }
       
       const response = await res.json();
 
-      // --- SAFETY CHECK: Ensure structure matches what we need ---
+      // --- CRITICAL SAFETY CHECKS ---
       if (!response.detection) {
           response.detection = {
               risk_score: 0,
@@ -184,7 +184,7 @@ const App: React.FC = () => {
               model_suspected: null
           };
       }
-      // Guarantee signals is array to prevent map crash
+      // Ensure signals is always an array to prevent crashes
       if (!Array.isArray(response.detection.signals)) {
           response.detection.signals = [];
       }
@@ -374,7 +374,6 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {/* History Toggle */}
             <div className="mt-12 flex justify-center pb-8" id="history">
               <button onClick={() => setShowHistory(!showHistory)} className="group flex items-center gap-2 text-sm uppercase tracking-widest text-gray-500 hover:text-brand-red transition-all">
                 <History className="w-4 h-4 group-hover:rotate-12 transition-transform" /> 
@@ -405,24 +404,6 @@ const App: React.FC = () => {
                               <Tooltip />
                               <Area type="monotone" dataKey="risk" stroke="#DC143C" strokeWidth={2} name="Risk Score" />
                             </AreaChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-
-                    <div className="glass-card p-4 rounded-xl h-72 w-full flex flex-col">
-                      <h4 className="text-sm font-semibold text-gray-400 mb-4 flex items-center gap-2"><BarChart2 className="w-4 h-4"/> Risk Distribution by Type</h4>
-                      <div className="flex-1 w-full text-xs">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={typeDistributionStats}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
-                              <XAxis dataKey="name" stroke="#555" tick={{fill: '#888'}} />
-                              <YAxis stroke="#555" tick={{fill: '#888'}} allowDecimals={false} />
-                              <Tooltip />
-                              <Legend wrapperStyle={{paddingTop: '10px'}} />
-                              <Bar dataKey="Low" stackId="a" fill="#22c55e" radius={[0,0,0,0]} />
-                              <Bar dataKey="Medium" stackId="a" fill="#eab308" radius={[0,0,0,0]} />
-                              <Bar dataKey="High" stackId="a" fill="#DC143C" radius={[4,4,0,0]} />
-                            </BarChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
