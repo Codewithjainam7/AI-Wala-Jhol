@@ -73,12 +73,20 @@ export default async function handler(req, res) {
     if (mode === 'humanize') {
       return res.status(200).json({ humanizer: data.humanized_text || text });
     } else {
-      // --- CRITICAL FIX: Guarantee signals is an array ---
+      // --- CRITICAL FIX: Guarantee structure exists ---
+      if (!data) {
+          data = {};
+      }
       if (!data.detection) {
           data.detection = {};
       }
+      // Guarantee detection properties exist with defaults
+      data.detection.risk_score = typeof data.detection.risk_score === 'number' ? data.detection.risk_score : 0;
+      data.detection.risk_level = data.detection.risk_level || "LOW";
+      data.detection.summary = data.detection.summary || "Analysis completed.";
+      
+      // Guarantee signals is an array
       if (!Array.isArray(data.detection.signals)) {
-        // If signals is missing or not an array, give it a default empty array so frontend doesn't crash
         data.detection.signals = ["No specific signals detected."]; 
       }
       return res.status(200).json(data);
