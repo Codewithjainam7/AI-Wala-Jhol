@@ -4,7 +4,6 @@ import ResultsView from './components/ResultsView';
 import Background3D from './components/Background3D';
 import FeatureCards from './components/FeatureCards';
 import CustomCursor from './components/CustomCursor';
-// REMOVED: import { analyzeContent } from './services/geminiService';
 import { ScanResponse, ScanMode } from './types';
 import { Upload, Type, Image as ImageIcon, FileText, Loader2, History, X, ChevronRight, TrendingUp, BarChart2, BookOpen, PenTool, AlertTriangle, CheckCircle } from 'lucide-react';
 import { APP_NAME } from './constants';
@@ -40,18 +39,18 @@ const App: React.FC = () => {
     localStorage.setItem('awj_history', JSON.stringify(history));
   }, [history]);
 
-  // Compute cumulative stats for Area graph (Risk over Time)
+  // Compute cumulative stats for Area graph
   const historyStats = useMemo(() => {
     const reversed = [...history].reverse();
     return reversed.map((item, index) => ({
       name: `Scan ${index + 1}`,
-      risk: item.detection.risk_score,
-      date: new Date(item.timestamp).toLocaleDateString() + ' ' + new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+      risk: item?.detection?.risk_score || 0, // Safe access
+      date: item.timestamp ? new Date(item.timestamp).toLocaleDateString() : 'N/A',
       type: item.mode
     }));
   }, [history]);
 
-  // Compute Stacked Bar Stats (Risk Level Distribution by Type)
+  // Compute Stacked Bar Stats
   const typeDistributionStats = useMemo(() => {
     const stats = {
       text: { high: 0, medium: 0, low: 0 },
@@ -61,9 +60,10 @@ const App: React.FC = () => {
 
     history.forEach(item => {
       const mode = item.mode === 'video' ? 'file' : item.mode;
-      const level = item.detection.risk_level.toLowerCase() as 'high' | 'medium' | 'low';
+      // Safe access for risk_level
+      const level = (item?.detection?.risk_level || 'low').toLowerCase() as 'high' | 'medium' | 'low';
       
-      if (stats[mode]) {
+      if (stats[mode] && stats[mode][level] !== undefined) {
         stats[mode][level] += 1;
       }
     });
@@ -134,7 +134,6 @@ const App: React.FC = () => {
     }
   };
 
-  // --- NEW SECURE ANALYZE FUNCTION ---
   const handleAnalyze = async () => {
     if (activeTab === 'text' && !inputText.trim()) return;
     if (activeTab !== 'text' && !selectedFile) return;
@@ -143,14 +142,12 @@ const App: React.FC = () => {
     setResult(null);
     
     try {
-      // 1. Prepare data for the backend
       const payload = {
         mode: activeTab === 'image' ? 'image' : activeTab === 'file' ? 'file' : 'text',
         content: activeTab === 'text' ? inputText : selectedFile!.data,
         mimeType: activeTab === 'text' ? null : selectedFile!.type
       };
 
-      // 2. Call your secure Vercel API
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -158,13 +155,14 @@ const App: React.FC = () => {
       });
 
       if (!res.ok) {
-          const errorData = await res.json().catch(() => ({}));
-          throw new Error(errorData.error || "Analysis failed on server");
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || "Server error");
       }
       
-      let response = await res.json();
-      
-      // --- FRONTEND SAFETY: Ensure structure matches ScanResponse ---
+      const response = await res.json();
+
+      // --- CRITICAL SAFETY CHECKS ---
+      // Force default structure if missing
       if (!response.detection) {
           response.detection = {
               risk_score: 0,
@@ -179,13 +177,11 @@ const App: React.FC = () => {
               model_suspected: null
           };
       }
-      
-      // Double check signals is an array to prevent "map" error
+      // Ensure signals is always an array
       if (!Array.isArray(response.detection.signals)) {
           response.detection.signals = [];
       }
 
-      // 3. Add local file info (backend doesn't know file names)
       if (activeTab === 'text') {
         response.file_info = { name: null, type: 'text', size_bytes: inputText.length, pages: null };
       } else {
@@ -210,7 +206,6 @@ const App: React.FC = () => {
     }
   };
 
-  // --- NEW SECURE HUMANIZE FUNCTION ---
   const handleHumanize = async () => {
     if (!result) return;
     
