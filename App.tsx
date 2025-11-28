@@ -20,34 +20,37 @@ const App: React.FC = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load history SAFELY
+  // --- CRITICAL FIX: Safe History Loading ---
   useEffect(() => {
     const saved = localStorage.getItem('awj_history');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // CRITICAL FIX: Only accept if it is actually an array
+        // Only load if it's a valid array
         if (Array.isArray(parsed)) {
-          setHistory(parsed);
+          // Double check items aren't broken
+          const cleanHistory = parsed.filter(item => item && item.detection && Array.isArray(item.detection.signals));
+          setHistory(cleanHistory);
+        } else {
+          // If not an array, it's corrupted. Reset it.
+          localStorage.removeItem('awj_history');
         }
       } catch (e) {
-        console.error("Failed to parse history", e);
-        // If corrupt, clear it
+        console.error("History corrupted, resetting.", e);
         localStorage.removeItem('awj_history');
       }
     }
   }, []);
 
-  // Save history
+  // Save history safely
   useEffect(() => {
     localStorage.setItem('awj_history', JSON.stringify(history));
   }, [history]);
 
-  // Compute stats SAFELY (Prevents map errors)
+  // --- CRITICAL FIX: Safe Data Access for Graphs ---
   const historyStats = useMemo(() => {
     if (!Array.isArray(history)) return [];
-    const reversed = [...history].reverse();
-    return reversed.map((item, index) => ({
+    return [...history].reverse().map((item, index) => ({
       name: `Scan ${index + 1}`,
       risk: item?.detection?.risk_score || 0,
       date: item?.timestamp ? new Date(item.timestamp).toLocaleDateString() : 'N/A',
@@ -160,13 +163,13 @@ const App: React.FC = () => {
       });
 
       if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || "Server error");
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.error || "Analysis failed on server");
       }
       
       const response = await res.json();
 
-      // --- CRITICAL SAFETY CHECKS ---
+      // --- SAFETY CHECK: Ensure structure matches what we need ---
       if (!response.detection) {
           response.detection = {
               risk_score: 0,
@@ -181,7 +184,7 @@ const App: React.FC = () => {
               model_suspected: null
           };
       }
-      // Ensure signals is always an array to prevent crashes
+      // Guarantee signals is array to prevent map crash
       if (!Array.isArray(response.detection.signals)) {
           response.detection.signals = [];
       }
@@ -212,7 +215,6 @@ const App: React.FC = () => {
 
   const handleHumanize = async () => {
     if (!result) return;
-    
     setIsHumanizing(true);
     try {
       const payload = {
@@ -283,7 +285,6 @@ const App: React.FC = () => {
               </p>
             </div>
             
-            {/* Learn Content */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
                <div className="glass-card p-6 rounded-2xl hover:bg-white/5 transition-all">
                   <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center mb-4 text-blue-500">
