@@ -4,37 +4,37 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: "Server Configuration Error: API Key missing" });
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const { content, mode, mimeType } = req.body;
 
     let prompt = "";
     let imageParts = [];
 
-    // --- PROMPT ENGINEERING ---
     if (mode === 'humanize') {
-      prompt = `You are an expert humanizer. Rewrite the following text to make it sound more natural, human, and less robotic. Keep the meaning but vary sentence structure and add human nuances. Return ONLY the rewritten text. Text: ${content}`;
+        prompt = `You are an expert humanizer... (keep existing prompt)...`;
     } else {
-      // Detection Prompt (Text, File, or Image)
-      prompt = `Analyze the provided content (Text or Image) for AI generation. 
-      You are an AI detector. 
-      Return a JSON object strictly in this format (no markdown):
+      // --- IMPORTANT: This JSON structure MUST match what App.tsx looks for ---
+      prompt = `Analyze this content for AI generation. 
+      Return a VALID JSON object (no markdown formatting) with this EXACT structure:
       {
-        "risk_score": (number 0-100),
-        "risk_level": ("HIGH", "MEDIUM", or "LOW"),
-        "summary": "Short 1-sentence summary of why it looks like AI or Human",
-        "details": ["Bullet point 1 observation", "Bullet point 2 observation"]
+        "detection": {
+            "risk_score": (number 0-100),
+            "risk_level": ("HIGH", "MEDIUM", or "LOW"),
+            "summary": "Short 1-sentence summary",
+            "detailed_analysis": "longer explanation"
+        }
       }
-      Analyze this content:`;
-      
-      // If it's just text, append it to the prompt
-      if (mode === 'text') {
-        prompt += `\n"${content}"`;
-      }
+      Analyze this:`;
+      if (mode === 'text') prompt += `\n"${content}"`;
     }
 
-    // Handle Images/PDFs
     if ((mode === 'image' || mode === 'file') && mimeType) {
       imageParts = [{ inlineData: { data: content, mimeType: mimeType } }];
     }
@@ -43,18 +43,17 @@ export default async function handler(req, res) {
     const response = await result.response;
     const text = response.text();
 
-    // --- PARSE RESPONSE ---
     if (mode === 'humanize') {
       return res.status(200).json({ humanizer: text });
     } else {
-      // Clean up markdown if Gemini adds it (e.g. ```json ... ```)
-      const cleanJson = text.replace(/```json|```/g, '').trim();
-      const data = JSON.parse(cleanJson);
-      return res.status(200).json(data);
+        // Clean JSON formatting from Gemini (it often wraps in ```json ... ```)
+        const cleanJson = text.replace(/```json|```/g, '').trim();
+        const data = JSON.parse(cleanJson);
+        return res.status(200).json(data);
     }
 
   } catch (error) {
-    console.error("API Error:", error);
-    return res.status(500).json({ error: 'Failed to analyze' });
+    console.error("Backend Error:", error);
+    return res.status(500).json({ error: error.message || "Failed to analyze content" });
   }
 }
