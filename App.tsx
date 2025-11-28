@@ -22,21 +22,22 @@ const App: React.FC = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- SAFE HISTORY LOADING ---
+  // --- CRITICAL FIX: Safe History Loading ---
+  // This code acts like a bouncer. If the saved data is bad, it throws it away.
   useEffect(() => {
     const saved = localStorage.getItem('awj_history');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Only load if it's a valid array
+        // Only accept if it is a list (Array)
         if (Array.isArray(parsed)) {
           setHistory(parsed);
         } else {
-          // If corrupted, clear it
+          console.warn("Corrupted history found (not an array), clearing.");
           localStorage.removeItem('awj_history');
         }
       } catch (e) {
-        console.error("History corrupted, clearing.", e);
+        console.error("Failed to parse history, clearing.", e);
         localStorage.removeItem('awj_history');
       }
     }
@@ -47,7 +48,8 @@ const App: React.FC = () => {
     localStorage.setItem('awj_history', JSON.stringify(history));
   }, [history]);
 
-  // --- SAFE STATS CALCULATION ---
+  // --- CRITICAL FIX: Safe Data Access for Graphs ---
+  // Prevents "map of undefined" crash
   const historyStats = useMemo(() => {
     if (!Array.isArray(history)) return [];
     return [...history].reverse().map((item, index) => ({
@@ -417,7 +419,6 @@ const App: React.FC = () => {
                     history.map((item, i) => (
                       <div key={(item?.scan_id || i) + Math.random()} className="glass-card p-4 rounded-lg flex justify-between items-center bg-black/40 border border-white/5 hover:bg-black/80 transition-all cursor-pointer group relative overflow-hidden" onClick={() => setResult(item)}>
                           <div className="flex items-center gap-4 relative z-10">
-                            <div className={`w-1 h-12 rounded-full transition-all group-hover:w-1.5 group-hover:shadow-[0_0_10px_currentColor] ${item?.detection?.risk_level === 'HIGH' ? 'bg-brand-red text-brand-red' : item?.detection?.risk_level === 'MEDIUM' ? 'bg-yellow-500 text-yellow-500' : 'bg-green-500 text-green-500'}`} />
                             <div>
                               <p className="text-white font-medium truncate max-w-[200px] md:max-w-md group-hover:text-brand-red transition-colors">
                                 {item?.detection?.summary || "Scan Result"}
@@ -426,12 +427,6 @@ const App: React.FC = () => {
                                 {item?.timestamp ? new Date(item.timestamp).toLocaleString() : ""} • {item?.detection?.risk_level || "UNKNOWN"} Risk
                               </p>
                             </div>
-                          </div>
-                          <div className="text-right hidden md:block relative z-10">
-                            <span className={`text-2xl font-bold transition-colors ${item?.detection?.risk_level === 'HIGH' ? 'text-brand-red' : 'text-white'}`}>
-                              {item?.detection?.risk_score}
-                            </span>
-                            <span className="text-xs text-gray-500 block">% AI</span>
                           </div>
                       </div>
                     ))
