@@ -66,21 +66,19 @@ export default async function handler(req, res) {
         data = JSON.parse(cleanText);
     } catch (parseError) {
         console.error("JSON Parse Error:", parseError, "Raw text:", text);
-        // If parsing fails, we still want to return a valid structure to avoid frontend crash
-        // For humanize mode, we might just return the raw text if it failed to parse as JSON
-        if (mode === 'humanize') {
-             data = { humanized_text: text };
-        } else {
-             // For detection, return a default safe object indicating error in analysis but valid structure
+        // If parsing fails, create a fallback structure
+        if (mode !== 'humanize') {
              data = {
                  detection: {
                      risk_score: 0,
                      risk_level: "LOW",
                      summary: "Analysis failed to parse correctly. Please try again.",
                      detailed_analysis: "The AI returned an invalid response format.",
-                     signals: []
+                     signals: ["Error parsing response"]
                  }
              };
+        } else {
+             data = { humanized_text: text };
         }
     }
 
@@ -89,27 +87,36 @@ export default async function handler(req, res) {
       return res.status(200).json({ humanizer: data.humanized_text || text });
     } else {
       // --- CRITICAL FIX: Guarantee structure exists ---
+      // Ensure data is an object
       if (!data || typeof data !== 'object') {
           data = {};
       }
-      if (!data.detection) {
+      // Ensure detection is an object
+      if (!data.detection || typeof data.detection !== 'object') {
           data.detection = {};
       }
-      // Guarantee detection properties exist with defaults
+      
+      // Force defaults for all expected fields
       data.detection.risk_score = typeof data.detection.risk_score === 'number' ? data.detection.risk_score : 0;
       data.detection.risk_level = data.detection.risk_level || "LOW";
       data.detection.summary = data.detection.summary || "Analysis completed.";
+      data.detection.detailed_analysis = data.detection.detailed_analysis || "No details provided.";
       
-      // Guarantee signals is an array
+      // GUARANTEE signals is an array
       if (!Array.isArray(data.detection.signals)) {
-        data.detection.signals = ["No specific signals detected."]; 
+        // Try to recover if it's a string, otherwise default array
+        if (typeof data.detection.signals === 'string') {
+            data.detection.signals = [data.detection.signals];
+        } else {
+            data.detection.signals = ["No specific signals detected."];
+        }
       }
+      
       return res.status(200).json(data);
     }
 
   } catch (error) {
     console.error("Backend Error:", error);
-    // Even in a catastrophic backend error, returning JSON with error field is better
     return res.status(500).json({ error: error.message || 'Analysis failed on server' });
   }
 }
