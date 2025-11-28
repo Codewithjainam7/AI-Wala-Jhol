@@ -24,15 +24,26 @@ const App: React.FC = () => {
 
   // --- CRITICAL FIX 1: New Storage Key to wipe bad data automatically ---
   useEffect(() => {
-    // Changed key to 'awj_history_v3' to force a fresh start for everyone
+    // CRITICAL FIX: Clear old corrupted data
+    localStorage.removeItem('awj_history');
+    localStorage.removeItem('awj_history_v2');
+    
     const saved = localStorage.getItem('awj_history_v3');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          setHistory(parsed);
+          // Validate each item has proper structure
+          const validated = parsed.filter(item => {
+            return item && 
+                   item.detection && 
+                   typeof item.detection === 'object' &&
+                   Array.isArray(item.detection.signals);
+          });
+          setHistory(validated);
         }
       } catch (e) {
+        console.error("Error loading history:", e);
         localStorage.removeItem('awj_history_v3');
       }
     }
@@ -46,12 +57,19 @@ const App: React.FC = () => {
   // --- CRITICAL FIX 2: Safe Stats Calculation ---
   const historyStats = useMemo(() => {
     if (!Array.isArray(history)) return [];
-    return [...history].reverse().map((item, index) => ({
-      name: `Scan ${index + 1}`,
-      risk: item?.detection?.risk_score || 0,
-      date: item?.timestamp ? new Date(item.timestamp).toLocaleDateString() : 'N/A',
-      type: item?.mode || 'text'
-    }));
+    return [...history].reverse().map((item, index) => {
+      // CRITICAL FIX: Safe property access
+      const riskScore = item?.detection?.risk_score ?? 0;
+      const timestamp = item?.timestamp;
+      const mode = item?.mode || 'text';
+      
+      return {
+        name: `Scan ${index + 1}`,
+        risk: riskScore,
+        date: timestamp ? new Date(timestamp).toLocaleDateString() : 'N/A',
+        type: mode
+      };
+    });
   }, [history]);
 
   const typeDistributionStats = useMemo(() => {
@@ -63,11 +81,19 @@ const App: React.FC = () => {
 
     if (Array.isArray(history)) {
       history.forEach(item => {
-        const mode = (item?.mode === 'video' ? 'file' : item?.mode) || 'text';
-        const level = (item?.detection?.risk_level || 'low').toLowerCase() as 'high' | 'medium' | 'low';
+        // CRITICAL FIX: Safe property access with proper fallbacks
+        if (!item || !item.detection) return;
         
-        if (stats[mode] && stats[mode][level] !== undefined) {
-          stats[mode][level] += 1;
+        const mode = (item.mode === 'video' ? 'file' : item.mode) || 'text';
+        const riskLevel = (item.detection.risk_level || 'LOW').toUpperCase();
+        
+        let level: 'high' | 'medium' | 'low' = 'low';
+        if (riskLevel === 'HIGH') level = 'high';
+        else if (riskLevel === 'MEDIUM') level = 'medium';
+        else level = 'low';
+        
+        if (stats[mode as keyof typeof stats]) {
+          stats[mode as keyof typeof stats][level] += 1;
         }
       });
     }
@@ -165,6 +191,7 @@ const App: React.FC = () => {
       
       const response = await res.json();
 
+      // CRITICAL FIX: Comprehensive response validation
       if (!response.detection) {
           response.detection = {
               risk_score: 0,
@@ -179,8 +206,37 @@ const App: React.FC = () => {
               model_suspected: null
           };
       }
-      if (!Array.isArray(response.detection.signals)) {
-          response.detection.signals = [];
+
+      // CRITICAL FIX: Ensure all detection fields are valid
+      response.detection.risk_score = response.detection.risk_score ?? 0;
+      response.detection.risk_level = response.detection.risk_level || 'LOW';
+      response.detection.summary = response.detection.summary || 'Analysis completed';
+      response.detection.detailed_analysis = response.detection.detailed_analysis || 'No detailed analysis available';
+      response.detection.confidence = response.detection.confidence || 'low';
+      response.detection.is_ai_generated = response.detection.is_ai_generated ?? false;
+      response.detection.ai_probability = response.detection.ai_probability ?? 0;
+      response.detection.human_probability = response.detection.human_probability ?? 1;
+      response.detection.model_suspected = response.detection.model_suspected || null;
+
+      // CRITICAL FIX: Force signals to be an array
+      if (!Array.isArray(response.detection.signals) || response.detection.signals.length === 0) {
+          response.detection.signals = ["No specific signals detected"];
+      }
+
+      // CRITICAL FIX: Ensure recommendations is an array
+      if (!Array.isArray(response.recommendations)) {
+          response.recommendations = ["Review manually", "Consider context"];
+      }
+
+      // CRITICAL FIX: Ensure humanizer exists
+      if (!response.humanizer) {
+          response.humanizer = {
+              requested: false,
+              humanized_text: null,
+              changes_made: [],
+              improvement_score: 0,
+              notes: null
+          };
       }
 
       if (activeTab === 'text') {
@@ -200,7 +256,7 @@ const App: React.FC = () => {
       setResult(response);
       setHistory(prev => [response, ...prev]);
     } catch (error: any) {
-      console.error(error);
+      console.error("Analysis error:", error);
       alert(`Analysis failed: ${error.message || "Unknown error"}`);
     } finally {
       setIsLoading(false);
@@ -230,12 +286,20 @@ const App: React.FC = () => {
         if (!prev) return null;
         return {
           ...prev,
-          humanizer: response.humanizer
+          humanizer: {
+            requested: true,
+            humanized_text: response.humanizer?.humanized_text || null,
+            changes_made: Array.isArray(response.humanizer?.changes_made) 
+              ? response.humanizer.changes_made 
+              : [],
+            improvement_score: response.humanizer?.improvement_score || 0,
+            notes: response.humanizer?.notes || null
+          }
         };
       });
     } catch (e) {
-      console.error(e);
-      alert("Humanization failed.");
+      console.error("Humanization error:", e);
+      alert("Humanization failed. Please try again.");
     } finally {
       setIsHumanizing(false);
     }
