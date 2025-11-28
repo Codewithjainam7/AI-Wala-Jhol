@@ -11,6 +11,43 @@ interface ResultsViewProps {
 }
 
 const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizing, onScanAgain }) => {
+  // CRITICAL FIX: Ensure data structure is valid before destructuring
+  if (!data.detection) {
+    data.detection = {
+      is_ai_generated: false,
+      ai_probability: 0,
+      human_probability: 1,
+      risk_score: 0,
+      risk_level: 'LOW',
+      confidence: 'low',
+      summary: 'Analysis incomplete',
+      signals: [],
+      model_suspected: null,
+      detailed_analysis: 'No analysis available'
+    };
+  }
+
+  // CRITICAL FIX: Ensure signals is always an array
+  if (!Array.isArray(data.detection.signals)) {
+    data.detection.signals = ['No specific signals detected'];
+  }
+
+  // CRITICAL FIX: Ensure recommendations is always an array
+  if (!Array.isArray(data.recommendations)) {
+    data.recommendations = [];
+  }
+
+  // CRITICAL FIX: Ensure humanizer exists
+  if (!data.humanizer) {
+    data.humanizer = {
+      requested: false,
+      humanized_text: null,
+      changes_made: [],
+      improvement_score: 0,
+      notes: null
+    };
+  }
+
   const { detection, recommendations, humanizer } = data;
   const [animatedScore, setAnimatedScore] = useState(0);
 
@@ -20,13 +57,13 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
     const duration = 1500;
     const steps = 60;
     const intervalTime = duration / steps;
-    const increment = detection.risk_score / steps;
+    const increment = (detection.risk_score || 0) / steps;
     let current = 0;
 
     const timer = setInterval(() => {
       current += increment;
-      if (current >= detection.risk_score) {
-        setAnimatedScore(detection.risk_score);
+      if (current >= (detection.risk_score || 0)) {
+        setAnimatedScore(detection.risk_score || 0);
         clearInterval(timer);
       } else {
         setAnimatedScore(Math.floor(current));
@@ -55,8 +92,8 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
   };
 
   const pieData = [
-    { name: 'AI', value: detection.ai_probability * 100 },
-    { name: 'Human', value: detection.human_probability * 100 },
+    { name: 'AI', value: (detection.ai_probability || 0) * 100 },
+    { name: 'Human', value: (detection.human_probability || 0) * 100 },
   ];
   const COLORS = ['#DC143C', '#22c55e'];
 
@@ -111,7 +148,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
               <h3 className="text-white font-semibold text-lg">Analysis Summary</h3>
             </div>
             <p className="text-gray-300 leading-relaxed text-sm md:text-base border-l-2 border-brand-red/50 pl-4 group-hover:border-brand-red transition-colors duration-300">
-              {detection.summary}
+              {detection.summary || 'No summary available'}
             </p>
           </div>
           
@@ -122,7 +159,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
                </span>
             )}
             <span className="px-3 py-1 rounded-full bg-white/5 text-xs text-gray-400 border border-white/10">
-                 Confidence: <span className="capitalize font-medium text-white">{detection.confidence}</span>
+                 Confidence: <span className="capitalize font-medium text-white">{detection.confidence || 'unknown'}</span>
             </span>
           </div>
         </div>
@@ -136,7 +173,11 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
              Detected Signals
            </h3>
            <ul className="space-y-3">
-             {detection.signals.map((signal, idx) => (
+             {/* CRITICAL FIX: Safe mapping with fallback */}
+             {(Array.isArray(detection.signals) && detection.signals.length > 0 
+               ? detection.signals 
+               : ['No specific signals detected']
+             ).map((signal, idx) => (
                <li 
                  key={idx} 
                  className="flex items-start gap-3 text-sm text-gray-300 bg-black/40 p-3 rounded-lg border border-white/5 hover:border-brand-red/30 transition-all duration-300 group hover:translate-x-1"
@@ -155,14 +196,18 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
              Detailed Analysis
            </h3>
            <p className="text-sm text-gray-400 leading-relaxed whitespace-pre-wrap">
-             {detection.detailed_analysis}
+             {detection.detailed_analysis || 'No detailed analysis available'}
            </p>
            
            <h4 className="text-white font-semibold mt-6 mb-3 text-sm uppercase flex items-center gap-2">
              <CheckCircle className="w-4 h-4 text-green-500" /> Recommendations
            </h4>
            <div className="flex flex-wrap gap-2">
-             {recommendations.map((rec, idx) => (
+             {/* CRITICAL FIX: Safe mapping for recommendations */}
+             {(Array.isArray(recommendations) && recommendations.length > 0 
+               ? recommendations 
+               : ['No recommendations available']
+             ).map((rec, idx) => (
                <span key={idx} className="px-3 py-1.5 rounded bg-brand-red/5 text-gray-300 text-xs border border-brand-red/10 hover:bg-brand-red/10 hover:text-white transition-colors cursor-default">
                  {rec}
                </span>
@@ -225,9 +270,9 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
                  <div className="flex flex-wrap gap-4 text-sm text-gray-400">
                     <div className="flex items-center gap-2 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20">
                        <CheckCircle className="w-4 h-4 text-green-500" />
-                       <span>Improvement Score: <strong className="text-white">{humanizer.improvement_score}</strong></span>
+                       <span>Improvement Score: <strong className="text-white">{humanizer.improvement_score || 0}</strong></span>
                     </div>
-                    {humanizer.changes_made.length > 0 && (
+                    {Array.isArray(humanizer.changes_made) && humanizer.changes_made.length > 0 && (
                       <div className="flex flex-wrap items-center gap-2">
                          <span className="text-gray-500">Changes:</span>
                          {humanizer.changes_made.map((change, i) => (
