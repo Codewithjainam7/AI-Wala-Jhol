@@ -14,7 +14,7 @@ export default async function handler(req, res) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash",
+      model: "gemini-1.5-flash",
       generationConfig: { responseMimeType: "application/json" } // Force JSON output
     });
 
@@ -29,7 +29,7 @@ export default async function handler(req, res) {
     } else {
       // Detection Prompt
       prompt = `Analyze the provided content for AI generation. 
-      You are an AI detector using the Gemini 2.5 Flash model.
+      You are an AI detector using the Gemini 1.5 Flash model.
       Return a JSON object strictly in this format:
       {
         "detection": {
@@ -79,3 +79,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: error.message || 'Analysis failed on server' });
   }
 }
+
