@@ -143,35 +143,53 @@ const App: React.FC = () => {
     setResult(null);
     
     try {
+      // 1. Prepare data for the backend
       const payload = {
         mode: activeTab === 'image' ? 'image' : activeTab === 'file' ? 'file' : 'text',
         content: activeTab === 'text' ? inputText : selectedFile!.data,
         mimeType: activeTab === 'text' ? null : selectedFile!.type
       };
 
+      // 2. Call your secure Vercel API
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
-
-      // --- CRITICAL FIX: Check if backend returned an error ---
-      if (!res.ok || data.error) {
-        throw new Error(data.error || "Server analysis failed");
+      if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.error || "Analysis failed on server");
       }
       
-      // --- CRITICAL FIX: Ensure detection object exists ---
-      if (!data.detection) {
-        throw new Error("Invalid response format from AI");
+      let response = await res.json();
+      
+      // --- FRONTEND SAFETY: Ensure structure matches ScanResponse ---
+      if (!response.detection) {
+          response.detection = {
+              risk_score: 0,
+              risk_level: 'LOW',
+              summary: 'Analysis incomplete.',
+              detailed_analysis: 'No details returned.',
+              signals: [],
+              is_ai_generated: false,
+              ai_probability: 0,
+              human_probability: 1,
+              confidence: 'low',
+              model_suspected: null
+          };
+      }
+      
+      // Double check signals is an array to prevent "map" error
+      if (!Array.isArray(response.detection.signals)) {
+          response.detection.signals = [];
       }
 
-      // Add local file info (backend doesn't know file names)
+      // 3. Add local file info (backend doesn't know file names)
       if (activeTab === 'text') {
-        data.file_info = { name: null, type: 'text', size_bytes: inputText.length, pages: null };
+        response.file_info = { name: null, type: 'text', size_bytes: inputText.length, pages: null };
       } else {
-        data.file_info = { 
+        response.file_info = { 
           name: selectedFile!.name, 
           type: selectedFile!.type, 
           size_bytes: selectedFile!.size, 
@@ -179,14 +197,13 @@ const App: React.FC = () => {
         };
       }
       
-      data.mode = activeTab; 
-      data.timestamp = new Date().toISOString();
+      response.mode = activeTab; 
+      response.timestamp = new Date().toISOString();
       
-      setResult(data);
-      setHistory(prev => [data, ...prev]);
-
+      setResult(response);
+      setHistory(prev => [response, ...prev]);
     } catch (error: any) {
-      console.error("Full Error:", error);
+      console.error(error);
       alert(`Analysis failed: ${error.message || "Unknown error"}`);
     } finally {
       setIsLoading(false);
