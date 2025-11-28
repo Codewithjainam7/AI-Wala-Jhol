@@ -22,34 +22,28 @@ const App: React.FC = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // --- CRITICAL FIX: Safe History Loading ---
-  // This code acts like a bouncer. If the saved data is bad, it throws it away.
+  // --- CRITICAL FIX 1: New Storage Key to wipe bad data automatically ---
   useEffect(() => {
-    const saved = localStorage.getItem('awj_history');
+    // Changed key to 'awj_history_v3' to force a fresh start for everyone
+    const saved = localStorage.getItem('awj_history_v3');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Only accept if it is a list (Array)
         if (Array.isArray(parsed)) {
           setHistory(parsed);
-        } else {
-          console.warn("Corrupted history found (not an array), clearing.");
-          localStorage.removeItem('awj_history');
         }
       } catch (e) {
-        console.error("Failed to parse history, clearing.", e);
-        localStorage.removeItem('awj_history');
+        localStorage.removeItem('awj_history_v3');
       }
     }
   }, []);
 
-  // Save history safely
+  // Save to the NEW key
   useEffect(() => {
-    localStorage.setItem('awj_history', JSON.stringify(history));
+    localStorage.setItem('awj_history_v3', JSON.stringify(history));
   }, [history]);
 
-  // --- CRITICAL FIX: Safe Data Access for Graphs ---
-  // Prevents "map of undefined" crash
+  // --- CRITICAL FIX 2: Safe Stats Calculation ---
   const historyStats = useMemo(() => {
     if (!Array.isArray(history)) return [];
     return [...history].reverse().map((item, index) => ({
@@ -171,7 +165,6 @@ const App: React.FC = () => {
       
       const response = await res.json();
 
-      // --- CRITICAL SAFETY CHECKS ---
       if (!response.detection) {
           response.detection = {
               risk_score: 0,
@@ -186,7 +179,6 @@ const App: React.FC = () => {
               model_suspected: null
           };
       }
-      // Ensure signals is always an array to prevent crashes
       if (!Array.isArray(response.detection.signals)) {
           response.detection.signals = [];
       }
@@ -252,7 +244,7 @@ const App: React.FC = () => {
   const clearHistory = () => {
     if(confirm("Clear all history?")) {
       setHistory([]);
-      localStorage.removeItem('awj_history');
+      localStorage.removeItem('awj_history_v3');
     }
   }
 
@@ -406,6 +398,24 @@ const App: React.FC = () => {
                               <Tooltip />
                               <Area type="monotone" dataKey="risk" stroke="#DC143C" strokeWidth={2} name="Risk Score" />
                             </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
+
+                    <div className="glass-card p-4 rounded-xl h-72 w-full flex flex-col">
+                      <h4 className="text-sm font-semibold text-gray-400 mb-4 flex items-center gap-2"><BarChart2 className="w-4 h-4"/> Risk Distribution by Type</h4>
+                      <div className="flex-1 w-full text-xs">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={typeDistributionStats}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                              <XAxis dataKey="name" stroke="#555" tick={{fill: '#888'}} />
+                              <YAxis stroke="#555" tick={{fill: '#888'}} allowDecimals={false} />
+                              <Tooltip />
+                              <Legend wrapperStyle={{paddingTop: '10px'}} />
+                              <Bar dataKey="Low" stackId="a" fill="#22c55e" radius={[0,0,0,0]} />
+                              <Bar dataKey="Medium" stackId="a" fill="#eab308" radius={[0,0,0,0]} />
+                              <Bar dataKey="High" stackId="a" fill="#DC143C" radius={[4,4,0,0]} />
+                            </BarChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
