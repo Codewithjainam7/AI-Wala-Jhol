@@ -28,13 +28,11 @@ const App: React.FC = () => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        // Only load if it's a valid array
         if (Array.isArray(parsed)) {
           // Double check items aren't broken
           const cleanHistory = parsed.filter(item => item && item.detection && Array.isArray(item.detection.signals));
           setHistory(cleanHistory);
         } else {
-          // If not an array, it's corrupted. Reset it.
           localStorage.removeItem('awj_history');
         }
       } catch (e) {
@@ -376,6 +374,7 @@ const App: React.FC = () => {
               </div>
             )}
 
+            {/* History Toggle */}
             <div className="mt-12 flex justify-center pb-8" id="history">
               <button onClick={() => setShowHistory(!showHistory)} className="group flex items-center gap-2 text-sm uppercase tracking-widest text-gray-500 hover:text-brand-red transition-all">
                 <History className="w-4 h-4 group-hover:rotate-12 transition-transform" /> 
@@ -409,6 +408,24 @@ const App: React.FC = () => {
                         </ResponsiveContainer>
                       </div>
                     </div>
+
+                    <div className="glass-card p-4 rounded-xl h-72 w-full flex flex-col">
+                      <h4 className="text-sm font-semibold text-gray-400 mb-4 flex items-center gap-2"><BarChart2 className="w-4 h-4"/> Risk Distribution by Type</h4>
+                      <div className="flex-1 w-full text-xs">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={typeDistributionStats}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                              <XAxis dataKey="name" stroke="#555" tick={{fill: '#888'}} />
+                              <YAxis stroke="#555" tick={{fill: '#888'}} allowDecimals={false} />
+                              <Tooltip />
+                              <Legend wrapperStyle={{paddingTop: '10px'}} />
+                              <Bar dataKey="Low" stackId="a" fill="#22c55e" radius={[0,0,0,0]} />
+                              <Bar dataKey="Medium" stackId="a" fill="#eab308" radius={[0,0,0,0]} />
+                              <Bar dataKey="High" stackId="a" fill="#DC143C" radius={[4,4,0,0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
                   </div>
                 )}
                 
@@ -419,6 +436,7 @@ const App: React.FC = () => {
                     history.map((item, i) => (
                       <div key={(item?.scan_id || i) + Math.random()} className="glass-card p-4 rounded-lg flex justify-between items-center bg-black/40 border border-white/5 hover:bg-black/80 transition-all cursor-pointer group relative overflow-hidden" onClick={() => setResult(item)}>
                           <div className="flex items-center gap-4 relative z-10">
+                            <div className={`w-1 h-12 rounded-full transition-all group-hover:w-1.5 group-hover:shadow-[0_0_10px_currentColor] ${item?.detection?.risk_level === 'HIGH' ? 'bg-brand-red text-brand-red' : item?.detection?.risk_level === 'MEDIUM' ? 'bg-yellow-500 text-yellow-500' : 'bg-green-500 text-green-500'}`} />
                             <div>
                               <p className="text-white font-medium truncate max-w-[200px] md:max-w-md group-hover:text-brand-red transition-colors">
                                 {item?.detection?.summary || "Scan Result"}
@@ -427,6 +445,12 @@ const App: React.FC = () => {
                                 {item?.timestamp ? new Date(item.timestamp).toLocaleString() : ""} • {item?.detection?.risk_level || "UNKNOWN"} Risk
                               </p>
                             </div>
+                          </div>
+                          <div className="text-right hidden md:block relative z-10">
+                            <span className={`text-2xl font-bold transition-colors ${item?.detection?.risk_level === 'HIGH' ? 'text-brand-red' : 'text-white'}`}>
+                              {item?.detection?.risk_score}
+                            </span>
+                            <span className="text-xs text-gray-500 block">% AI</span>
                           </div>
                       </div>
                     ))
