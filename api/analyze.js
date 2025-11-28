@@ -60,13 +60,28 @@ export default async function handler(req, res) {
     const text = response.text();
 
     // 5. Parse Response safely
-    let data;
+    let data = {};
     try {
         const cleanText = text.replace(/```json|```/g, '').trim();
         data = JSON.parse(cleanText);
     } catch (parseError) {
         console.error("JSON Parse Error:", parseError, "Raw text:", text);
-        return res.status(500).json({ error: "AI returned invalid JSON", raw: text });
+        // If parsing fails, we still want to return a valid structure to avoid frontend crash
+        // For humanize mode, we might just return the raw text if it failed to parse as JSON
+        if (mode === 'humanize') {
+             data = { humanized_text: text };
+        } else {
+             // For detection, return a default safe object indicating error in analysis but valid structure
+             data = {
+                 detection: {
+                     risk_score: 0,
+                     risk_level: "LOW",
+                     summary: "Analysis failed to parse correctly. Please try again.",
+                     detailed_analysis: "The AI returned an invalid response format.",
+                     signals: []
+                 }
+             };
+        }
     }
 
     // 6. Handle Humanize vs Detection response structure
@@ -74,7 +89,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ humanizer: data.humanized_text || text });
     } else {
       // --- CRITICAL FIX: Guarantee structure exists ---
-      if (!data) {
+      if (!data || typeof data !== 'object') {
           data = {};
       }
       if (!data.detection) {
@@ -94,6 +109,7 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error("Backend Error:", error);
+    // Even in a catastrophic backend error, returning JSON with error field is better
     return res.status(500).json({ error: error.message || 'Analysis failed on server' });
   }
 }
