@@ -14,7 +14,7 @@ export default async function handler(req, res) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     
-    // UPDATED: Using 'gemini-2.5-flash' as requested
+    // Using 'gemini-2.5-flash' as requested
     const model = genAI.getGenerativeModel({ 
       model: "gemini-2.5-flash",
       generationConfig: { responseMimeType: "application/json" }
@@ -39,7 +39,7 @@ export default async function handler(req, res) {
           "risk_level": ("HIGH", "MEDIUM", or "LOW"),
           "summary": "Short 1-sentence summary of why it looks like AI or Human",
           "detailed_analysis": "Longer explanation with bullet points if needed",
-          "signals": ["Specific indicator 1", "Specific indicator 2"]
+          "signals": ["Specific indicator 1", "Specific indicator 2", "Specific indicator 3"]
         }
       }
       Analyze this content:`;
@@ -73,9 +73,13 @@ export default async function handler(req, res) {
     if (mode === 'humanize') {
       return res.status(200).json({ humanizer: data.humanized_text || text });
     } else {
-      // Safety Check: Ensure signals is an array to prevent "map is not a function" errors
-      if (data.detection && !Array.isArray(data.detection.signals)) {
-        data.detection.signals = [];
+      // --- CRITICAL FIX: Guarantee signals is an array ---
+      if (!data.detection) {
+          data.detection = {};
+      }
+      if (!Array.isArray(data.detection.signals)) {
+        // If signals is missing or not an array, give it a default empty array so frontend doesn't crash
+        data.detection.signals = ["No specific signals detected."]; 
       }
       return res.status(200).json(data);
     }
