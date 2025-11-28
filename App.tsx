@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import Navbar from './components/Navbar';
-import ResultCard from './components/ResultCard';
-import Background from './components/Background';
+import Header from './components/Header';
+import ResultsView from './components/ResultsView';
+import Background3D from './components/Background3D';
+import FeatureCards from './components/FeatureCards';
+import CustomCursor from './components/CustomCursor';
 import { ScanResponse, ScanMode } from './types';
 import { Upload, Type, Image as ImageIcon, FileText, Loader2, History, X, ChevronRight, TrendingUp, BarChart2, BookOpen, PenTool, AlertTriangle, CheckCircle } from 'lucide-react';
 import { APP_NAME } from './constants';
@@ -262,9 +264,10 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-black text-gray-100 font-sans selection:bg-brand-red selection:text-white relative overflow-x-hidden">
-      <Background />
+      <CustomCursor />
+      <Background3D />
       <div className="relative z-10">
-      <Navbar 
+      <Header 
         onGoHome={handleReset} 
         onNavigate={handleNavigate} 
         onHistoryClick={handleHistoryClick}
@@ -369,7 +372,7 @@ const App: React.FC = () => {
 
             {result && (
               <div id="results" className="scroll-mt-24">
-                <ResultCard data={result} onHumanize={handleHumanize} isHumanizing={isHumanizing} onScanAgain={handleReset} />
+                <ResultsView data={result} onHumanize={handleHumanize} isHumanizing={isHumanizing} onScanAgain={handleReset} />
               </div>
             )}
 
