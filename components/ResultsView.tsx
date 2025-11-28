@@ -27,17 +27,14 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
     };
   }
 
-  // CRITICAL FIX: Ensure signals is always an array
   if (!Array.isArray(data.detection.signals)) {
     data.detection.signals = ['No specific signals detected'];
   }
 
-  // CRITICAL FIX: Ensure recommendations is always an array
   if (!Array.isArray(data.recommendations)) {
     data.recommendations = [];
   }
 
-  // CRITICAL FIX: Ensure humanizer exists
   if (!data.humanizer) {
     data.humanizer = {
       requested: false,
@@ -51,7 +48,6 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
   const { detection, recommendations, humanizer } = data;
   const [animatedScore, setAnimatedScore] = useState(0);
 
-  // Animate the risk score counting up
   useEffect(() => {
     setAnimatedScore(0);
     const duration = 1500;
@@ -73,20 +69,30 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
     return () => clearInterval(timer);
   }, [detection.risk_score]);
 
+  // GLOWING EFFECT: Get dynamic risk colors with glow
   const getRiskColor = (level: string) => {
     switch (level) {
-      case 'HIGH': return 'text-brand-red border-brand-red shadow-brand-red/20';
-      case 'MEDIUM': return 'text-yellow-500 border-yellow-500 shadow-yellow-500/20';
-      case 'LOW': return 'text-green-500 border-green-500 shadow-green-500/20';
-      default: return 'text-gray-400 border-gray-400';
+      case 'HIGH': return 'text-red-500';
+      case 'MEDIUM': return 'text-yellow-500';
+      case 'LOW': return 'text-green-500';
+      default: return 'text-gray-400';
+    }
+  };
+
+  const getRiskGlow = (level: string) => {
+    switch (level) {
+      case 'HIGH': return 'shadow-[0_0_30px_rgba(239,68,68,0.6)] border-red-500/50';
+      case 'MEDIUM': return 'shadow-[0_0_30px_rgba(234,179,8,0.6)] border-yellow-500/50';
+      case 'LOW': return 'shadow-[0_0_30px_rgba(34,197,94,0.6)] border-green-500/50';
+      default: return '';
     }
   };
 
   const getRiskBg = (level: string) => {
     switch (level) {
-      case 'HIGH': return 'bg-brand-red/10';
-      case 'MEDIUM': return 'bg-yellow-500/10';
-      case 'LOW': return 'bg-green-500/10';
+      case 'HIGH': return 'bg-gradient-to-br from-red-500/20 via-red-600/10 to-transparent';
+      case 'MEDIUM': return 'bg-gradient-to-br from-yellow-500/20 via-yellow-600/10 to-transparent';
+      case 'LOW': return 'bg-gradient-to-br from-green-500/20 via-green-600/10 to-transparent';
       default: return 'bg-gray-400/10';
     }
   };
@@ -95,15 +101,19 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
     { name: 'AI', value: (detection.ai_probability || 0) * 100 },
     { name: 'Human', value: (detection.human_probability || 0) * 100 },
   ];
-  const COLORS = ['#DC143C', '#22c55e'];
+  
+  // GLOWING PIE CHART COLORS
+  const COLORS = detection.risk_level === 'HIGH' ? ['#ef4444', '#22c55e'] :
+                 detection.risk_level === 'MEDIUM' ? ['#eab308', '#22c55e'] :
+                 ['#22c55e', '#22c55e'];
 
   return (
     <div className="w-full space-y-6 pb-12">
       {/* Top Cards Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         
-        {/* Risk Score Card */}
-        <div className={`glass-card p-6 rounded-xl flex flex-col items-center justify-center relative overflow-hidden ${getRiskBg(detection.risk_level)} animate-fade-up`}>
+        {/* GLOWING Risk Score Card */}
+        <div className={`glass-card p-6 rounded-xl flex flex-col items-center justify-center relative overflow-hidden ${getRiskBg(detection.risk_level)} ${getRiskGlow(detection.risk_level)} animate-fade-up border-2 transition-all duration-500`}>
           <h3 className="text-gray-400 text-sm uppercase tracking-wider mb-2 z-10">AI Probability</h3>
           <div className="relative w-32 h-32 z-10 transform hover:scale-110 transition-transform duration-500 cursor-default">
              <ResponsiveContainer width="100%" height="100%">
@@ -126,22 +136,24 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
                 </PieChart>
              </ResponsiveContainer>
              <div className="absolute inset-0 flex items-center justify-center flex-col">
-                <span className={`text-3xl font-bold ${getRiskColor(detection.risk_level).split(' ')[0]}`}>
+                <span className={`text-3xl font-bold ${getRiskColor(detection.risk_level)} drop-shadow-[0_0_10px_currentColor]`}>
                   {animatedScore}%
                 </span>
              </div>
           </div>
-          <p className={`mt-2 font-bold z-10 tracking-widest ${getRiskColor(detection.risk_level).split(' ')[0]}`}>
+          <p className={`mt-2 font-bold z-10 tracking-widest ${getRiskColor(detection.risk_level)} drop-shadow-[0_0_8px_currentColor]`}>
             {detection.risk_level} RISK
           </p>
-          {/* Subtle background glow based on risk */}
-          <div className={`absolute top-0 right-0 w-32 h-32 rounded-full blur-[60px] opacity-20 ${
-              detection.risk_level === 'HIGH' ? 'bg-red-600' : detection.risk_level === 'MEDIUM' ? 'bg-yellow-500' : 'bg-green-500'
+          {/* GLOWING background blob */}
+          <div className={`absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl opacity-40 animate-pulse ${
+              detection.risk_level === 'HIGH' ? 'bg-red-500' : 
+              detection.risk_level === 'MEDIUM' ? 'bg-yellow-500' : 
+              'bg-green-500'
           }`} />
         </div>
 
         {/* Summary Card */}
-        <div className="glass-card p-6 rounded-xl md:col-span-2 flex flex-col justify-between animate-fade-up animate-delay-100 group hover:bg-white/5 transition-colors duration-500">
+        <div className="glass-card p-6 rounded-xl md:col-span-2 flex flex-col justify-between animate-fade-up animate-delay-100 group hover:bg-white/5 transition-colors duration-500 border border-white/10 hover:border-brand-red/30">
           <div>
             <div className="flex items-center gap-2 mb-3">
               <BrainCircuit className="text-brand-red w-5 h-5 animate-pulse-slow" />
@@ -167,13 +179,12 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
 
       {/* Signals & Detailed Analysis */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="glass-card p-6 rounded-xl animate-fade-up animate-delay-200">
+        <div className="glass-card p-6 rounded-xl animate-fade-up animate-delay-200 border border-white/10 hover:border-red-500/30 transition-all">
            <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
-             <AlertCircle className="w-5 h-5 text-brand-red" />
+             <AlertCircle className="w-5 h-5 text-brand-red drop-shadow-[0_0_8px_rgba(220,20,60,0.8)]" />
              Detected Signals
            </h3>
            <ul className="space-y-3">
-             {/* CRITICAL FIX: Safe mapping with fallback */}
              {(Array.isArray(detection.signals) && detection.signals.length > 0 
                ? detection.signals 
                : ['No specific signals detected']
@@ -190,7 +201,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
            </ul>
         </div>
 
-        <div className="glass-card p-6 rounded-xl animate-fade-up animate-delay-300">
+        <div className="glass-card p-6 rounded-xl animate-fade-up animate-delay-300 border border-white/10 hover:border-blue-500/30 transition-all">
            <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
              <FileText className="w-5 h-5 text-brand-red" />
              Detailed Analysis
@@ -200,15 +211,14 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
            </p>
            
            <h4 className="text-white font-semibold mt-6 mb-3 text-sm uppercase flex items-center gap-2">
-             <CheckCircle className="w-4 h-4 text-green-500" /> Recommendations
+             <CheckCircle className="w-4 h-4 text-green-500 drop-shadow-[0_0_6px_rgba(34,197,94,0.6)]" /> Recommendations
            </h4>
            <div className="flex flex-wrap gap-2">
-             {/* CRITICAL FIX: Safe mapping for recommendations */}
              {(Array.isArray(recommendations) && recommendations.length > 0 
                ? recommendations 
                : ['No recommendations available']
              ).map((rec, idx) => (
-               <span key={idx} className="px-3 py-1.5 rounded bg-brand-red/5 text-gray-300 text-xs border border-brand-red/10 hover:bg-brand-red/10 hover:text-white transition-colors cursor-default">
+               <span key={idx} className="px-3 py-1.5 rounded bg-brand-red/5 text-gray-300 text-xs border border-brand-red/10 hover:bg-brand-red/10 hover:text-white hover:border-brand-red/30 transition-all cursor-default">
                  {rec}
                </span>
              ))}
@@ -217,11 +227,11 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
       </div>
 
       {/* Humanizer Section */}
-      <div className="glass-card p-1 rounded-xl bg-gradient-to-r from-brand-red/20 via-brand-black to-brand-red/20 animate-fade-up animate-delay-500 transform hover:scale-[1.01] transition-transform duration-500">
+      <div className="glass-card p-1 rounded-xl bg-gradient-to-r from-brand-red/20 via-brand-black to-brand-red/20 animate-fade-up animate-delay-500 transform hover:scale-[1.01] transition-transform duration-500 shadow-[0_0_20px_rgba(220,20,60,0.3)]">
          <div className="bg-brand-black rounded-lg p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
               <h3 className="text-white font-bold flex items-center gap-2 text-xl">
-                <Sparkles className="text-brand-red animate-pulse" />
+                <Sparkles className="text-brand-red animate-pulse drop-shadow-[0_0_10px_rgba(220,20,60,0.8)]" />
                 Humanizer Engine
               </h3>
               {!humanizer.humanized_text && (
@@ -232,7 +242,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
                     relative overflow-hidden px-6 py-2 rounded-lg font-medium transition-all flex items-center justify-center gap-2 shadow-lg
                     ${isHumanizing 
                       ? 'bg-gray-800 text-gray-300 cursor-not-allowed border border-gray-700' 
-                      : 'bg-brand-red hover:bg-brand-darkRed text-white shadow-brand-red/20 hover:shadow-brand-red/40'
+                      : 'bg-brand-red hover:bg-brand-darkRed text-white shadow-[0_0_20px_rgba(220,20,60,0.4)] hover:shadow-[0_0_30px_rgba(220,20,60,0.6)]'
                     }
                   `}
                 >
@@ -253,22 +263,22 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
 
             {humanizer.humanized_text ? (
               <div className="animate-fade-up">
-                 <div className="bg-white/5 border border-white/10 rounded-lg p-4 mb-4 relative overflow-hidden group hover:border-brand-red/30 transition-colors">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-brand-red/50" />
+                 <div className="bg-white/5 border border-white/10 rounded-lg p-4 mb-4 relative overflow-hidden group hover:border-green-500/30 transition-colors">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-green-500/50 shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
                     <p className="text-gray-200 whitespace-pre-wrap font-sans leading-relaxed relative z-10">
                       {humanizer.humanized_text}
                     </p>
                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button 
                         onClick={() => navigator.clipboard.writeText(humanizer.humanized_text || "")}
-                        className="bg-black/80 hover:bg-black text-white text-xs px-3 py-1.5 rounded backdrop-blur flex items-center gap-1 border border-white/10"
+                        className="bg-black/80 hover:bg-black text-white text-xs px-3 py-1.5 rounded backdrop-blur flex items-center gap-1 border border-white/10 hover:border-green-500/50"
                       >
                         <Copy className="w-3 h-3" /> Copy
                       </button>
                     </div>
                  </div>
                  <div className="flex flex-wrap gap-4 text-sm text-gray-400">
-                    <div className="flex items-center gap-2 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20">
+                    <div className="flex items-center gap-2 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20 shadow-[0_0_15px_rgba(34,197,94,0.2)]">
                        <CheckCircle className="w-4 h-4 text-green-500" />
                        <span>Improvement Score: <strong className="text-white">{humanizer.improvement_score || 0}</strong></span>
                     </div>
@@ -294,7 +304,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ data, onHumanize, isHumanizin
       <div className="flex justify-center pt-8 animate-fade-up animate-delay-500">
         <button
           onClick={onScanAgain}
-          className="group flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white px-8 py-3 rounded-full transition-all hover:scale-105 hover:border-brand-red/50 shadow-lg"
+          className="group flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white px-8 py-3 rounded-full transition-all hover:scale-105 hover:border-brand-red/50 hover:shadow-[0_0_20px_rgba(220,20,60,0.3)] shadow-lg"
         >
            <RotateCcw className="w-4 h-4 group-hover:-rotate-180 transition-transform duration-500" />
            Scan Another Content
