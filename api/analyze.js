@@ -38,7 +38,8 @@ export default async function handler(req, res) {
           "risk_score": (number 0-100),
           "risk_level": ("HIGH", "MEDIUM", or "LOW"),
           "summary": "Short 1-sentence summary of why it looks like AI or Human",
-          "detailed_analysis": "Longer explanation with bullet points if needed"
+          "detailed_analysis": "Longer explanation with bullet points if needed",
+          "signals": ["Specific indicator 1", "Specific indicator 2"]
         }
       }
       Analyze this content:`;
@@ -72,6 +73,10 @@ export default async function handler(req, res) {
     if (mode === 'humanize') {
       return res.status(200).json({ humanizer: data.humanized_text || text });
     } else {
+      // Safety Check: Ensure signals is an array to prevent "map is not a function" errors
+      if (data.detection && !Array.isArray(data.detection.signals)) {
+        data.detection.signals = [];
+      }
       return res.status(200).json(data);
     }
 
