@@ -1,5 +1,14 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// CRITICAL FIX: Add size limit configuration
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb', // Increase from default 1mb to 50mb
+    },
+  },
+};
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
@@ -7,18 +16,37 @@ export default async function handler(req, res) {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: "Server Error: API Key missing" });
 
+    const { content, mode, mimeType } = req.body;
+
+    // CRITICAL FIX: Validate content size BEFORE processing
+    if (!content) {
+      return res.status(400).json({ error: "No content provided" });
+    }
+
+    // Check content size (base64 encoded data)
+    const contentSize = content.length;
+    const maxSize = 20 * 1024 * 1024; // 20MB in bytes
+    
+    if (contentSize > maxSize) {
+      return res.status(413).json({ 
+        error: "Content too large. Please use a smaller file or less text.",
+        details: `Content size: ${(contentSize / 1024 / 1024).toFixed(2)}MB, Max: 20MB`
+      });
+    }
+
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-2.5-flash",
+      model: "gemini-2.5-pro",
       generationConfig: { responseMimeType: "application/json" }
     });
 
-    const { content, mode, mimeType } = req.body;
     let prompt = "";
     let imageParts = [];
 
     if (mode === 'humanize') {
-      prompt = `You are an expert humanizer. Rewrite this text to sound more natural, varying sentence structure and removing AI patterns. Return JSON with: { "humanized_text": "...", "changes_made": ["change1", "change2"], "improvement_score": 85 }. Text: ${content}`;
+      // Limit text for humanization to avoid timeouts
+      const textToHumanize = content.length > 5000 ? content.substring(0, 5000) : content;
+      prompt = `You are an expert humanizer. Rewrite this text to sound more natural, varying sentence structure and removing AI patterns. Return JSON with: { "humanized_text": "...", "changes_made": ["change1", "change2"], "improvement_score": 85 }. Text: ${textToHumanize}`;
     } else {
       prompt = `Analyze this content for AI generation. Return JSON with this EXACT structure: 
 {
@@ -38,7 +66,12 @@ export default async function handler(req, res) {
 }
 
 Content to analyze:`;
-      if (mode === 'text') prompt += `\n"${content}"`;
+      
+      if (mode === 'text') {
+        // Limit text analysis to first 10000 chars to avoid payload issues
+        const textToAnalyze = content.length > 10000 ? content.substring(0, 10000) : content;
+        prompt += `\n"${textToAnalyze}"`;
+      }
     }
 
     if ((mode === 'image' || mode === 'file') && mimeType) {
@@ -81,7 +114,6 @@ Content to analyze:`;
     }
 
     if (mode === 'humanize') {
-      // CRITICAL FIX: Ensure humanizer response structure
       return res.status(200).json({ 
         humanizer: {
           humanized_text: data.humanized_text || text,
@@ -91,11 +123,9 @@ Content to analyze:`;
         }
       });
     } else {
-      // CRITICAL FIX: Bulletproof detection response structure
       if (!data) data = {};
       if (!data.detection) data.detection = {};
       
-      // Ensure ALL required detection fields exist with proper types
       data.detection.risk_score = typeof data.detection.risk_score === 'number' ? data.detection.risk_score : 0;
       data.detection.risk_level = data.detection.risk_level || "LOW";
       data.detection.summary = data.detection.summary || "Analysis completed.";
@@ -106,12 +136,10 @@ Content to analyze:`;
       data.detection.human_probability = typeof data.detection.human_probability === 'number' ? data.detection.human_probability : 1;
       data.detection.model_suspected = data.detection.model_suspected || null;
       
-      // CRITICAL FIX: FORCE signals to be an array
       if (!Array.isArray(data.detection.signals) || data.detection.signals.length === 0) {
         data.detection.signals = ["No specific signals detected"];
       }
       
-      // CRITICAL FIX: Ensure recommendations is an array
       if (!Array.isArray(data.recommendations)) {
         data.recommendations = ["Review content manually", "Consider context"];
       }
