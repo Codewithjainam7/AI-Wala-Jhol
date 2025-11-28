@@ -39,7 +39,7 @@
         background-color: #000000;
         color: #e5e5e5;
         overflow-x: hidden;
-        /* cursor: none;  Hide default cursor only if you are sure custom cursor works */
+        /* cursor: none;  <-- SAFEGUARD: Only uncomment if CustomCursor is 100% working */
       }
       
       /* Custom Scrollbar */
@@ -112,6 +112,7 @@
       .animate-delay-300 { animation-delay: 300ms; }
       .animate-delay-500 { animation-delay: 500ms; }
     </style>
+    <!-- REMOVED IMPORT MAP HERE -->
 </head>
   <body>
     <div id="root"></div>
