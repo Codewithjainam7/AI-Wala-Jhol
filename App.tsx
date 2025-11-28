@@ -143,29 +143,35 @@ const App: React.FC = () => {
     setResult(null);
     
     try {
-      // 1. Prepare data for the backend
       const payload = {
         mode: activeTab === 'image' ? 'image' : activeTab === 'file' ? 'file' : 'text',
         content: activeTab === 'text' ? inputText : selectedFile!.data,
         mimeType: activeTab === 'text' ? null : selectedFile!.type
       };
 
-      // 2. Call your secure Vercel API
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error("Analysis failed on server");
+      const data = await res.json();
+
+      // --- CRITICAL FIX: Check if backend returned an error ---
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Server analysis failed");
+      }
       
-      const response: ScanResponse = await res.json();
-      
-      // 3. Add local file info (backend doesn't know file names)
+      // --- CRITICAL FIX: Ensure detection object exists ---
+      if (!data.detection) {
+        throw new Error("Invalid response format from AI");
+      }
+
+      // Add local file info (backend doesn't know file names)
       if (activeTab === 'text') {
-        response.file_info = { name: null, type: 'text', size_bytes: inputText.length, pages: null };
+        data.file_info = { name: null, type: 'text', size_bytes: inputText.length, pages: null };
       } else {
-        response.file_info = { 
+        data.file_info = { 
           name: selectedFile!.name, 
           type: selectedFile!.type, 
           size_bytes: selectedFile!.size, 
@@ -173,14 +179,15 @@ const App: React.FC = () => {
         };
       }
       
-      response.mode = activeTab; 
-      response.timestamp = new Date().toISOString();
+      data.mode = activeTab; 
+      data.timestamp = new Date().toISOString();
       
-      setResult(response);
-      setHistory(prev => [response, ...prev]);
-    } catch (error) {
-      console.error(error);
-      alert("Analysis failed. Please check your connection or API key.");
+      setResult(data);
+      setHistory(prev => [data, ...prev]);
+
+    } catch (error: any) {
+      console.error("Full Error:", error);
+      alert(`Analysis failed: ${error.message || "Unknown error"}`);
     } finally {
       setIsLoading(false);
     }
